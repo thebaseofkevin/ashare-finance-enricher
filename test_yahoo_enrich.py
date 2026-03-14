@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import sys
 import os
+import pandas as pd
 
 # Add the current directory to sys.path to import yahoo_enrich
 sys.path.insert(0, os.path.dirname(__file__))
@@ -38,48 +39,21 @@ class TestYahooEnrich(unittest.TestCase):
             "trailingEps": 1.5,
             "bookValue": 10.0,
             "totalCash": 500000,
-            "regularMarketPreviousClose": 12.30
+            "currentPrice": 12.30
         }
         mock_ticker.fast_info = {"previous_close": 12.30}
-        mock_ticker.balance_sheet = MagicMock()
-        mock_ticker.balance_sheet.empty = False
-        mock_ticker.balance_sheet.index = ["Short Term Debt"]
-        debt_mock = MagicMock()
-        debt_mock.iloc = [200000]
-        mock_ticker.balance_sheet.loc = MagicMock()
-        mock_ticker.balance_sheet.loc.__getitem__ = lambda self, key: {"Short Term Debt": debt_mock}.get(key, MagicMock())
-
-        mock_ticker.financials = MagicMock()
-        mock_ticker.financials.empty = False
-        mock_ticker.financials.index = ["Gross Profit", "Total Revenue", "Net Income"]
-
-        # Create separate mocks for each loc access
-        gross_mock = MagicMock()
-        gross_mock.iloc = [100000]
-        revenue_mock = MagicMock()
-        revenue_mock.iloc = [500000]
-        net_mock = MagicMock()
-        net_mock.iloc = [50000]
-
-        mock_ticker.financials.loc = MagicMock()
-        mock_ticker.financials.loc.__getitem__ = lambda self, key: {
-            "Gross Profit": gross_mock,
-            "Total Revenue": revenue_mock,
-            "Net Income": net_mock
-        }.get(key, MagicMock())
-
-        mock_ticker.cashflow = MagicMock()
-        mock_ticker.cashflow.empty = False
-        mock_ticker.cashflow.index = ["Operating Cash Flow", "Capital Expenditures"]
-        op_mock = MagicMock()
-        op_mock.iloc = [150000]
-        cap_mock = MagicMock()
-        cap_mock.iloc = [-50000]
-        mock_ticker.cashflow.loc = MagicMock()
-        mock_ticker.cashflow.loc.__getitem__ = lambda self, key: {
-            "Operating Cash Flow": op_mock,
-            "Capital Expenditures": cap_mock
-        }.get(key, MagicMock())
+        mock_ticker.balance_sheet = pd.DataFrame(
+            {0: [300000, 200000]},
+            index=["Cash And Cash Equivalents", "Short Term Debt"],
+        )
+        mock_ticker.financials = pd.DataFrame(
+            {0: [100000, 500000, 50000]},
+            index=["Gross Profit", "Total Revenue", "Net Income Continuous Operations"],
+        )
+        mock_ticker.cashflow = pd.DataFrame(
+            {0: [150000, -50000]},
+            index=["Operating Cash Flow", "Capital Expenditures"],
+        )
 
         mock_yf.Ticker.return_value = mock_ticker
 
@@ -95,10 +69,9 @@ class TestYahooEnrich(unittest.TestCase):
         self.assertEqual(data["roe"], 0.1)
         self.assertEqual(data["eps"], 1.5)
         self.assertEqual(data["bps"], 10.0)
-        self.assertEqual(data["cash"], 500000)
-        self.assertEqual(data["short_term_loan"], 200000)
+        self.assertEqual(data["cash"], 300000)
         self.assertEqual(data["short_term_borrowing"], 200000)
-        self.assertEqual(data["gross_profit_margin"], 0.2)  # 100000 / 500000
+        self.assertEqual(data["gross_profit_margin"], "20%")  # 100000 / 500000
         self.assertEqual(data["net_profit"], 50000)
         self.assertEqual(data["operating_cash_flow"], 150000)
         self.assertEqual(data["investment_cash_flow"], -50000)
